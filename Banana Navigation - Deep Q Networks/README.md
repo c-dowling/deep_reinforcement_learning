@@ -6,7 +6,7 @@
 
 ### Introduction
 
-This project is part of the Deep Reinforcement Learning Nanodegree Program by Udacity (https://www.udacity.com/course/deep-reinforcement-learning-nanodegree--nd893). This code demonstrates a simple implementation of a Deep Q Network. In this excercise an agent learns how to navigate a virtual environment, collecting yellow bananas and avoiding blue bananas. A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.
+This project is part of the [Deep Reinforcement Learning Nanodegree Program](https://www.udacity.com/course/deep-reinforcement-learning-nanodegree--nd893) by [Udacity](https://www.udacity.com/). This code demonstrates a simple implementation of a Deep Q Network. In this excercise an agent learns how to navigate a virtual environment, collecting yellow bananas and avoiding blue bananas. A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.
 
 ![Trained Agent][image1]
 
