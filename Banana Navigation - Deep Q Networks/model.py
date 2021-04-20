@@ -65,8 +65,5 @@ class DuellingQNetwork(nn.Module):
         adv = F.relu(self.fc1_adv(state))
         adv = F.relu(self.fc2_adv(adv))
         adv = self.fc3_adv(adv)
-        print(val)
-        print(adv)
         x = val + (adv - adv.mean())
-        print(x)
         return x

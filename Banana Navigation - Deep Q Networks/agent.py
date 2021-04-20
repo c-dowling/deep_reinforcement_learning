@@ -168,7 +168,7 @@ class ReplayBuffer:
         self.action_size = action_size
         self.memory = deque(maxlen=int(buffer_size))
         self.priorities = deque(maxlen=int(buffer_size))
-        self.importance = defaultdict(lambda:np.zeroes(buffer_size))
+        self.importance = deque(maxlen=int(buffer_size))
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
@@ -197,13 +197,13 @@ class ReplayBuffer:
                 self.importance[idx] = imp
         else:
             experiences_idx = random.sample(range(len(self.memory)), k=self.batch_size)
-            experiences = np.array(self.memory)[experiences_idx]
+            experiences = [self.memory[idx] for idx in experiences_idx]
 
-        states = torch.from_numpy(np.vstack([e[0] for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e[1] for e in experiences if e is not None])).long().to(device)
-        rewards = torch.from_numpy(np.vstack([e[2] for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e[3] for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e[4] for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
+        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
         return (states, actions, rewards, next_states, dones), experiences_idx
 
