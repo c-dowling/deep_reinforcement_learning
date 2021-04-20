@@ -15,7 +15,7 @@ class Agent():
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, fc1_units, fc2_units, buffer_size, batch_size, alpha, gamma, tau,
-                 local_update_every, target_update_every, seed,  a=1, b=1, dbl_dqn=False, priority_rpl=False, duel_dqn=False):
+                 local_update_every, target_update_every, seed, a=1, b=1, dbl_dqn=False, priority_rpl=False, duel_dqn=False):
         """Initialize an Agent object.
 
         Params
