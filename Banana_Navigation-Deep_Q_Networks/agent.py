@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from collections import deque, namedtuple, defaultdict
+from collections import deque, namedtuple
 
 from model import QNetwork, DuellingQNetwork
 
@@ -106,7 +106,7 @@ class Agent():
             experiences (Tuple[torch.Variable]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        (states, actions, rewards, next_states, dones), indices = experiences
+        states, actions, rewards, next_states, dones = experiences
 
         # Get max predicted Q values (for next states) from target model
         if self.dbl_dqn:
@@ -114,23 +114,23 @@ class Agent():
             Q_next_states = self.qnetwork_target(next_states)
             Q_targets_next = Q_next_states.gather(1, local_best_actions.unsqueeze(1))
         else:
-            Q_targets_next = self.qnetwork_target(next_states).detach().argmax(1).unsqueeze(1)
+            Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
 
         # Compute Q targets for current states
         Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
         # Get expected Q values from local model
         Q_expected = self.qnetwork_local(states).gather(1, actions)
-
+    #PROBLEM HERE?
         # Compute loss
-        if self.priority_rpl:
-            errors = abs(Q_expected - Q_targets)
-            self.memory.update_priorities(indices, errors)
-            importance = [self.memory.importance[idx] for idx in indices]
-            importance = np.array(importance)**self.b
-            loss = torch.mean(torch.mul(errors.float(), torch.from_numpy(importance).float().to(device)))
-        else:
-            loss = F.mse_loss(Q_expected, Q_targets)
+#        if self.priority_rpl:
+#            errors = abs(Q_expected - Q_targets)
+#            self.memory.update_priorities(indices, errors)
+#            importance = [self.memory.importance[idx] for idx in indices]
+#            importance = np.array(importance)**self.b
+#            loss = torch.mean(torch.mul(errors.float(), torch.from_numpy(importance).float().to(device)))
+#        else:
+        loss = F.mse_loss(Q_expected, Q_targets)
 
         # Minimize the loss
         self.optimizer.zero_grad()
@@ -189,14 +189,14 @@ class ReplayBuffer:
         """Randomly sample a batch of experiences from memory."""
         if self.is_priority:
             probabilities = self.get_probs(a)
-            experiences_idx = random.choices(range(len(self.memory)), k=self.batch_size, weights=probabilities)
-            experiences = np.array(self.memory)[experiences_idx]
+            experiences_idx = np.random.choice(len(self.memory), size=min(len(self.memory),self.batch_size), p=probabilities)
+            experiences = [self.memory[idx] for idx in experiences_idx]
             importance = 1/len(self.memory) * 1/probabilities               # Calculate our importance sampling weight
             importance_norm = importance / max(importance)
             for idx, imp in zip(experiences_idx, importance_norm):
                 self.importance[idx] = imp
         else:
-            experiences_idx = random.sample(range(len(self.memory)), k=self.batch_size)
+            experiences_idx = np.random.choice(len(self.memory), size=min(len(self.memory),self.batch_size))
             experiences = [self.memory[idx] for idx in experiences_idx]
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
@@ -205,7 +205,7 @@ class ReplayBuffer:
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
-        return (states, actions, rewards, next_states, dones), experiences_idx
+        return states, actions, rewards, next_states, dones
 
     def update_priorities(self, indices, errors):
         for idx, err in zip(indices, errors):
