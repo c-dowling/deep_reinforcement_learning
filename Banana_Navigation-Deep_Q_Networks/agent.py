@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from collections import deque, namedtuple
+from collections import deque, namedtuple, defaultdict
 
 from model import QNetwork, DuellingQNetwork
 
@@ -15,7 +15,7 @@ class Agent():
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, fc1_units, fc2_units, buffer_size, batch_size, alpha, gamma, tau,
-                 local_update_every, target_update_every, seed, a=1, b=1, dbl_dqn=False, priority_rpl=False, duel_dqn=False):
+                 local_update_every, target_update_every, seed, a, b, b_increase, b_end, dbl_dqn=False, priority_rpl=False, duel_dqn=False):
         """Initialize an Agent object.
 
         Params
@@ -40,6 +40,8 @@ class Agent():
         self.buffer_size = buffer_size                  # Size of memory buffer
         self.a = a                                      # Sampling probability (0=random | 1=priority)
         self.b = b                                      # Influence of importance sampling weights over learning
+        self.b_increase = b_increase                    #
+        self.b_end = b_end                              #
 
         # Agent modifications
         self.dbl_dqn = dbl_dqn                          # Double Q Learning
@@ -69,14 +71,14 @@ class Agent():
         if self.t_step % self.local_update_every == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > self.batch_size:
-                experiences = self.memory.sample()
+                experiences = self.memory.sample(a=self.a)
                 self.learn(experiences, self.gamma)
         if self.t_step % self.target_update_every == 0:
             self.soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
 
         #Update eps and b
+        self.b = np.min([self.b_end, self.b + self.b_increase])
         #self.eps = max(self.eps_end, self.eps_decay*self.eps)
-        #self.b = 1-self.eps
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -106,7 +108,7 @@ class Agent():
             experiences (Tuple[torch.Variable]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, indices = experiences
 
         # Get max predicted Q values (for next states) from target model
         if self.dbl_dqn:
@@ -121,16 +123,16 @@ class Agent():
 
         # Get expected Q values from local model
         Q_expected = self.qnetwork_local(states).gather(1, actions)
-    #PROBLEM HERE?
+
         # Compute loss
-#        if self.priority_rpl:
-#            errors = abs(Q_expected - Q_targets)
-#            self.memory.update_priorities(indices, errors)
-#            importance = [self.memory.importance[idx] for idx in indices]
-#            importance = np.array(importance)**self.b
-#            loss = torch.mean(torch.mul(errors.float(), torch.from_numpy(importance).float().to(device)))
-#        else:
-        loss = F.mse_loss(Q_expected, Q_targets)
+        if self.priority_rpl:
+            errors = abs(Q_expected - Q_targets)
+            self.memory.update_priorities(indices, errors)
+            importance = self.memory.get_importance(indices, self.a, self.b)
+            importance = np.array(importance)
+            loss = torch.mean(torch.mul(errors.float(), torch.from_numpy(importance).float().to(device)))
+        else:
+            loss = F.mse_loss(Q_expected, Q_targets)
 
         # Minimize the loss
         self.optimizer.zero_grad()
@@ -168,7 +170,6 @@ class ReplayBuffer:
         self.action_size = action_size
         self.memory = deque(maxlen=int(buffer_size))
         self.priorities = deque(maxlen=int(buffer_size))
-        self.importance = deque(maxlen=int(buffer_size))
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
@@ -185,16 +186,20 @@ class ReplayBuffer:
             probabilities = (np.array(self.priorities) ** a) / sum(np.array(self.priorities) ** a)
         return probabilities
 
+    def get_importance(self, experiences_idx, a, b):
+        """Gets the importance sampling weights associated with the experience index"""
+        importance = 1/len(self.memory) * 1/self.get_probs(a)               # Calculate our importance sampling weight    might need to use get_probs[i] for i in ...
+        importance = importance ** b
+        importance_norm = importance / max(importance)
+        importance_norm = [importance_norm[idx] for idx in experiences_idx]
+        return importance_norm
+
     def sample(self, a=1):
         """Randomly sample a batch of experiences from memory."""
         if self.is_priority:
             probabilities = self.get_probs(a)
             experiences_idx = np.random.choice(len(self.memory), size=min(len(self.memory),self.batch_size), p=probabilities)
             experiences = [self.memory[idx] for idx in experiences_idx]
-            importance = 1/len(self.memory) * 1/probabilities               # Calculate our importance sampling weight
-            importance_norm = importance / max(importance)
-            for idx, imp in zip(experiences_idx, importance_norm):
-                self.importance[idx] = imp
         else:
             experiences_idx = np.random.choice(len(self.memory), size=min(len(self.memory),self.batch_size))
             experiences = [self.memory[idx] for idx in experiences_idx]
@@ -205,11 +210,12 @@ class ReplayBuffer:
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
-        return states, actions, rewards, next_states, dones
+        return states, actions, rewards, next_states, dones, experiences_idx
 
     def update_priorities(self, indices, errors):
-        for idx, err in zip(indices, errors):
-            self.priorities[idx] = abs(err) + 0.001
+        with torch.no_grad():
+            for idx, err in zip(indices, errors):
+                self.priorities[idx] = (abs(err) + 0.001)
 
     def __len__(self):
         """Return the current size of internal memory."""
