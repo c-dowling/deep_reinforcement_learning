@@ -20,11 +20,25 @@ class Agent():
 
         Params
         ======
-            state_size (int): dimension of each state
-            action_size (int): dimension of each action
-            seed (int): random seed
-            _____________
-            _____________
+            state_size (int):                           dimension of each state
+            action_size (int):                          dimension of each action
+            fc1_units (int):                            number of nodes in layer 1 of neural network
+            fc2_units (int):                            number of nodes in layer 2 of neural network
+            buffer_size (int):                          size of memory buffer
+            batch_size (int):                           number of experiences to sample during learning
+            alpha (float):                              learning rate
+            gamma (float):                              discount parameter
+            tau (float):                                interpolation parameter
+            local_update_every (int):                   number of actions to take before updating local network weights
+            target_update_every (int):                  number of actions to take before updating target network weights
+            seed (int):                                 random seed
+            a (float):                                  sampling probability (0=random | 1=priority)
+            b (float):                                  influence of importance sampling weights over learning
+            b_increase (float):                         amount to increase b by every learning step
+            b_end (float):                              maximum value for b
+            dbl_dqn (bool):                             if True will use Double Q Learning
+            priority_rpl (bool):                        if True will use Prioritised Experience Replay
+            duel_dqn (bool):                            if True will use Duelling Q Networks
         """
         self.state_size = state_size
         self.action_size = action_size
@@ -40,8 +54,8 @@ class Agent():
         self.buffer_size = buffer_size                  # Size of memory buffer
         self.a = a                                      # Sampling probability (0=random | 1=priority)
         self.b = b                                      # Influence of importance sampling weights over learning
-        self.b_increase = b_increase                    #
-        self.b_end = b_end                              #
+        self.b_increase = b_increase                    # Amount to increase b by every learning step
+        self.b_end = b_end                              # Maximum value for b
 
         # Agent modifications
         self.dbl_dqn = dbl_dqn                          # Double Q Learning
@@ -76,9 +90,7 @@ class Agent():
         if self.t_step % self.target_update_every == 0:
             self.soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
 
-        #Update eps and b
         self.b = np.min([self.b_end, self.b + self.b_increase])
-        #self.eps = max(self.eps_end, self.eps_decay*self.eps)
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -165,6 +177,7 @@ class ReplayBuffer:
             buffer_size (int): maximum size of buffer
             batch_size (int): size of each training batch
             seed (int): random seed
+            is_priority (bool): if "True" will sample episodes using prioritised experience replay
         """
         self.is_priority = is_priority
         self.action_size = action_size
@@ -188,7 +201,7 @@ class ReplayBuffer:
 
     def get_importance(self, experiences_idx, a, b):
         """Gets the importance sampling weights associated with the experience index"""
-        importance = 1/len(self.memory) * 1/self.get_probs(a)               # Calculate our importance sampling weight    might need to use get_probs[i] for i in ...
+        importance = 1/len(self.memory) * 1/self.get_probs(a)
         importance = importance ** b
         importance_norm = importance / max(importance)
         importance_norm = [importance_norm[idx] for idx in experiences_idx]
