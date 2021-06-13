@@ -141,3 +141,6 @@ cython_debug/
 /Banana_Navigation-Deep_Q_Networks/Navigation_Pixels.ipynb
 /Banana_Navigation-Deep_Q_Networks/Banana_Windows_x86_64/
 /Banana_Navigation-Deep_Q_Networks/checkpoint.pth
+
+# intellij configs
+.idea/
