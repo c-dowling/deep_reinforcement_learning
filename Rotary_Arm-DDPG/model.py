@@ -59,12 +59,12 @@ class CriticNet(nn.Module):
         self.fcs1 = nn.Linear(state_size, fc1_units)
         self.fc2 = nn.Linear(fc1_units+action_size, fc2_units)
         self.fc3 = nn.Linear(fc2_units, 1)
+        self.reset_parameters()
 
     def reset_parameters(self):
         self.fcs1.weight.data.uniform_(*hidden_init(self.fcs1))
         self.fc2.weight.data.uniform_(*hidden_init(self.fc2))
         self.fc3.weight.data.uniform_(-3e-3, 3e-3)
-
 
     def forward(self, state, action):
         """Build a network that maps state -> action probabilities."""

@@ -55,9 +55,10 @@ class Agent():
         # Memory buffer
         self.memory = ReplayBuffer(action_size, buffer_size, batch_size, seed)
 
-    def step(self, state, action, reward, next_state, done):
+    def step(self, states, actions, rewards, next_states, dones):
         # Save experience in replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
+            self.memory.add(state, action, reward, next_state, done)
 
         # Learn if there are enough samples for a batch
         if len(self.memory) > self.batch_size:
